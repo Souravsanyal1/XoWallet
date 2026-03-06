@@ -17,9 +17,11 @@ const { NETWORKS } = require('./lib/networks');
 
 async function start() {
     try {
+        console.log('🔌 Connecting to database...');
         if (!MONGODB_URI) throw new Error("MONGODB_URI is not defined in .env");
         await connectToDatabase(MONGODB_URI);
 
+        console.log('🤖 Initializing bot engine...');
         let trackedWallets = await getWallets();
         console.log(`✅ Loaded ${trackedWallets.length} wallets from database.`);
 
@@ -53,29 +55,30 @@ async function start() {
             }
         );
 
-        // Start Scanners for all supported networks in PARALLEL
-        console.log(`📡 Starting scanners for ${Object.keys(NETWORKS).length} networks...`);
+        // Core Launch
+        await bot.launch();
+        console.log('✅ Bot engine is online and listening for commands!');
 
-        const scannerPromises = Object.entries(NETWORKS).map(async ([id, network]) => {
+        // Start Scanners in the background to avoid blocking the bot's main loop
+        console.log(`📡 Starting scanners for ${Object.keys(NETWORKS).length} networks in the background...`);
+
+        Object.entries(NETWORKS).forEach(async ([id, network]) => {
             try {
                 const provider = new ethers.JsonRpcProvider(network.rpcUrl);
 
-                // Set a timeout for RPC check to prevent hanging
+                // Fast connectivity check
                 await Promise.race([
                     provider.getNetwork(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('RPC Timeout')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
                 ]);
 
                 startScanner(id, network, trackedWallets, async (txData) => {
-                    console.log(`🔔 [${txData.network}] Transaction detected`);
-
                     const fromAddress = txData.from?.toLowerCase();
                     const toAddress = txData.to?.toLowerCase();
                     const notifiedUsers = new Set();
 
                     for (const w of trackedWallets) {
                         const walletAddress = w.address.toLowerCase();
-
                         if (walletAddress === fromAddress || walletAddress === toAddress) {
                             if (!notifiedUsers.has(w.chatId)) {
                                 const userWallets = trackedWallets.filter(uw => uw.chatId === w.chatId);
@@ -100,11 +103,9 @@ async function start() {
             }
         });
 
-        await Promise.all(scannerPromises);
-
-        console.log('🚀 EVM Multi-Chain Tracker Bot is running and monitoring all networks!');
+        console.log('🚀 EVM Multi-Chain Tracker Bot is fully operational!');
     } catch (err) {
-        console.error('💥 Failed to start bot:', err.message);
+        console.error('💥 Critical Error during bot startup:', err.message);
     }
 }
 
