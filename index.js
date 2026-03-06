@@ -3,6 +3,13 @@ const { ethers } = require('ethers');
 const { startScanner } = require('./lib/scanner');
 const { setupBot, sendTransactionAlert } = require('./lib/bot');
 const { connectToDatabase, getWallets, addWallet, removeWallet, getUserLanguage, setUserLanguage, updateWalletName, toggleWalletFavorite } = require('./lib/db');
+const express = require('express');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => res.send('🤖 EVM Multi-Chain Tracker Bot is running!'));
+app.listen(PORT, () => console.log(`🌍 Health check server listening on port ${PORT}`));
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const MONGODB_URI = process.env.MONGODB_URI;

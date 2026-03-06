@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: xowallet-tracer
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: CHANNEL_1_ID
+        sync: false
+      - key: CHANNEL_1_LINK
+        sync: false
+      - key: CHANNEL_2_ID
+        sync: false
+      - key: CHANNEL_2_LINK
+        sync: false
+      - key: NODE_VERSION
+        value: 20
