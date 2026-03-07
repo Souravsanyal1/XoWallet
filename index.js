@@ -62,6 +62,16 @@ async function start() {
         // Start Scanners in the background to avoid blocking the bot's main loop
         console.log(`📡 Starting scanners for ${Object.keys(NETWORKS).length} networks in the background...`);
 
+        // Deduplication Cache: chatId -> Set of txHashes
+        const notifiedTransactions = new Map();
+
+        // Cleanup cache every 10 minutes to prevent memory growth
+        setInterval(() => {
+            const now = Date.now();
+            console.log('🧹 Cleaning up transaction deduplication cache...');
+            notifiedTransactions.clear(); // Simple clear for safety, could be more granular
+        }, 600000);
+
         Object.entries(NETWORKS).forEach(async ([id, network]) => {
             try {
                 const provider = new ethers.JsonRpcProvider(network.rpcUrl);
@@ -75,12 +85,21 @@ async function start() {
                 startScanner(id, network, trackedWallets, async (txData) => {
                     const fromAddress = txData.from?.toLowerCase();
                     const toAddress = txData.to?.toLowerCase();
-                    const notifiedUsers = new Set();
+                    const txHash = txData.hash?.toLowerCase();
 
                     for (const w of trackedWallets) {
                         const walletAddress = w.address.toLowerCase();
                         if (walletAddress === fromAddress || walletAddress === toAddress) {
-                            if (!notifiedUsers.has(w.chatId)) {
+
+                            // Initialize user's notified set if not exists
+                            if (!notifiedTransactions.has(w.chatId)) {
+                                notifiedTransactions.set(w.chatId, new Set());
+                            }
+
+                            const userNotifiedSet = notifiedTransactions.get(w.chatId);
+
+                            // Check for duplicates
+                            if (!userNotifiedSet.has(txHash)) {
                                 const userWallets = trackedWallets.filter(uw => uw.chatId === w.chatId);
                                 const fromName = userWallets.find(uw => uw.address.toLowerCase() === fromAddress)?.name;
                                 const toName = userWallets.find(uw => uw.address.toLowerCase() === toAddress)?.name;
@@ -93,7 +112,12 @@ async function start() {
                                 };
 
                                 await sendTransactionAlert(bot, w.chatId, enrichedData, getUserLanguage);
-                                notifiedUsers.add(w.chatId);
+
+                                // Mark as notified
+                                userNotifiedSet.add(txHash);
+                                console.log(`🔔 Alert sent to ${w.chatId} for tx ${txHash}`);
+                            } else {
+                                console.log(`⏭️ Duplicate alert skipped for ${w.chatId} (tx ${txHash})`);
                             }
                         }
                     }
